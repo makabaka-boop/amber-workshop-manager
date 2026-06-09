@@ -44,6 +44,10 @@ app.post('/api/login', (req, res) => {
   });
 });
 
+app.get('/api/me', authenticateToken, (req, res) => {
+  res.json({ user: req.user });
+});
+
 app.get('/api/users', authenticateToken, (req, res) => {
   db.all('SELECT id, username, role, created_at FROM users', (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -194,44 +198,81 @@ app.get('/api/work-orders/:id', authenticateToken, (req, res) => {
 app.post('/api/work-orders/:id/advance-stage', authenticateToken, (req, res) => {
   const orderId = req.params.id;
   const { stage, weight_before, weight_after, crack_risk, notes, sandpaper_id, sandpaper_used, polishing_paste_id, polishing_paste_used } = req.body;
-  
+
+  // 重量校验
+  if (weight_before == null || weight_after == null) {
+    return res.status(400).json({ error: '请填写修整前后重量' });
+  }
+  if (Number(weight_after) > Number(weight_before)) {
+    return res.status(400).json({ error: '修整后重量不能大于修整前重量' });
+  }
+  // 耗材配对校验
+  if ((sandpaper_used && Number(sandpaper_used) > 0) && !sandpaper_id) {
+    return res.status(400).json({ error: '填写砂纸用量时必须选择砂纸' });
+  }
+  if (sandpaper_id && (!sandpaper_used || Number(sandpaper_used) <= 0)) {
+    return res.status(400).json({ error: '选择砂纸后必须填写砂纸用量' });
+  }
+  if ((polishing_paste_used && Number(polishing_paste_used) > 0) && !polishing_paste_id) {
+    return res.status(400).json({ error: '填写抛光膏用量时必须选择抛光膏' });
+  }
+  if (polishing_paste_id && (!polishing_paste_used || Number(polishing_paste_used) <= 0)) {
+    return res.status(400).json({ error: '选择抛光膏后必须填写用量' });
+  }
+
   const stages = ['cutting', 'grinding', 'polishing', 'drilling', 'recheck', 'completed'];
   const currentStageIndex = stages.indexOf(stage);
   const nextStage = currentStageIndex < stages.length - 1 ? stages[currentStageIndex + 1] : 'completed';
-  const weight_loss = weight_after ? (weight_before - weight_after) : 0;
-  
-  db.run(`INSERT INTO stage_records 
-          (order_id, stage, craftsman_id, weight_before, weight_after, weight_loss, crack_risk, notes, 
-           sandpaper_id, sandpaper_used, polishing_paste_id, polishing_paste_used, end_time)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-    [orderId, stage, req.user.id, weight_before, weight_after, weight_loss, crack_risk, notes, 
-     sandpaper_id, sandpaper_used, polishing_paste_id, polishing_paste_used],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      
-      if (sandpaper_used && sandpaper_used > 0) {
-        db.run('INSERT INTO material_usage_log (order_id, material_type, material_id, quantity, used_by) VALUES (?, ?, ?, ?, ?)',
-          [orderId, 'sandpaper', sandpaper_id, sandpaper_used, req.user.id]);
-      }
-      
-      if (polishing_paste_used && polishing_paste_used > 0) {
-        db.run('INSERT INTO material_usage_log (order_id, material_type, material_id, quantity, used_by) VALUES (?, ?, ?, ?, ?)',
-          [orderId, 'polishing_paste', polishing_paste_id, polishing_paste_used, req.user.id]);
-        
-        db.run('UPDATE polishing_paste SET stock_quantity = stock_quantity - ? WHERE id = ?',
-          [polishing_paste_used, polishing_paste_id]);
-      }
-      
-      const newStatus = nextStage === 'completed' ? 'completed' : 'processing';
-      db.run('UPDATE work_orders SET current_stage = ?, status = ? WHERE id = ?', 
-        [nextStage, newStatus, orderId],
-        (err) => {
-          if (err) return res.status(500).json({ error: err.message });
-          res.json({ success: true, nextStage });
+  const weight_loss = weight_after != null ? (Number(weight_before) - Number(weight_after)) : 0;
+
+  const insertRecord = () => {
+    db.run(`INSERT INTO stage_records 
+            (order_id, stage, craftsman_id, weight_before, weight_after, weight_loss, crack_risk, notes, 
+             sandpaper_id, sandpaper_used, polishing_paste_id, polishing_paste_used, end_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [orderId, stage, req.user.id, weight_before, weight_after, weight_loss, crack_risk, notes,
+       sandpaper_id, sandpaper_used, polishing_paste_id, polishing_paste_used],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (sandpaper_used && Number(sandpaper_used) > 0 && sandpaper_id) {
+          db.run('INSERT INTO material_usage_log (order_id, material_type, material_id, quantity, used_by) VALUES (?, ?, ?, ?, ?)',
+            [orderId, 'sandpaper', sandpaper_id, sandpaper_used, req.user.id]);
         }
-      );
-    }
-  );
+
+        if (polishing_paste_used && Number(polishing_paste_used) > 0 && polishing_paste_id) {
+          db.run('INSERT INTO material_usage_log (order_id, material_type, material_id, quantity, used_by) VALUES (?, ?, ?, ?, ?)',
+            [orderId, 'polishing_paste', polishing_paste_id, polishing_paste_used, req.user.id]);
+
+          db.run('UPDATE polishing_paste SET stock_quantity = stock_quantity - ? WHERE id = ?',
+            [polishing_paste_used, polishing_paste_id]);
+        }
+
+        const newStatus = nextStage === 'completed' ? 'completed' : 'processing';
+        db.run('UPDATE work_orders SET current_stage = ?, status = ? WHERE id = ?',
+          [nextStage, newStatus, orderId],
+          (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ success: true, nextStage });
+          }
+        );
+      }
+    );
+  };
+
+  // 抛光膏库存校验
+  if (polishing_paste_id && polishing_paste_used && Number(polishing_paste_used) > 0) {
+    db.get('SELECT stock_quantity, name FROM polishing_paste WHERE id = ?', [polishing_paste_id], (err, paste) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!paste) return res.status(400).json({ error: '抛光膏不存在' });
+      if (Number(polishing_paste_used) > Number(paste.stock_quantity)) {
+        return res.status(400).json({ error: `抛光膏用量不能超过当前库存（${paste.stock_quantity}g）` });
+      }
+      insertRecord();
+    });
+  } else {
+    insertRecord();
+  }
 });
 
 app.post('/api/work-orders/:id/rework', authenticateToken, (req, res) => {
@@ -247,14 +288,14 @@ app.post('/api/work-orders/:id/rework', authenticateToken, (req, res) => {
 });
 
 app.get('/api/dashboard/stats', authenticateToken, (req, res) => {
+  // 阶段分布：包含所有工单（包括已完成）
   db.all(`
     SELECT current_stage as name, COUNT(*) as value 
     FROM work_orders 
-    WHERE status != 'completed'
     GROUP BY current_stage
   `, (err, stageData) => {
     if (err) return res.status(500).json({ error: err.message });
-    
+
     db.all(`
       SELECT pp.name, SUM(mul.quantity) as value
       FROM material_usage_log mul
@@ -265,7 +306,7 @@ app.get('/api/dashboard/stats', authenticateToken, (req, res) => {
       LIMIT 10
     `, (err, materialData) => {
       if (err) return res.status(500).json({ error: err.message });
-      
+
       db.all(`
         SELECT DATE(created_at) as date, COUNT(*) as count
         FROM work_orders
@@ -274,7 +315,7 @@ app.get('/api/dashboard/stats', authenticateToken, (req, res) => {
         ORDER BY date
       `, (err, trendData) => {
         if (err) return res.status(500).json({ error: err.message });
-        
+
         db.all(`
           SELECT rework_reason as name, COUNT(*) as value
           FROM work_orders
@@ -282,12 +323,22 @@ app.get('/api/dashboard/stats', authenticateToken, (req, res) => {
           GROUP BY rework_reason
         `, (err, reworkData) => {
           if (err) return res.status(500).json({ error: err.message });
-          
-          res.json({
-            stageDistribution: stageData,
-            materialConsumption: materialData,
-            deliveryTrend: trendData,
-            reworkReasons: reworkData
+
+          // 工单总数与已完成数（基于 status 与 current_stage 双重判断）
+          db.get(`SELECT COUNT(*) as total FROM work_orders`, (err, totalRow) => {
+            if (err) return res.status(500).json({ error: err.message });
+            db.get(`SELECT COUNT(*) as completed FROM work_orders WHERE status = 'completed' OR current_stage = 'completed'`, (err, completedRow) => {
+              if (err) return res.status(500).json({ error: err.message });
+
+              res.json({
+                stageDistribution: stageData,
+                materialConsumption: materialData,
+                deliveryTrend: trendData,
+                reworkReasons: reworkData,
+                totalOrders: totalRow ? totalRow.total : 0,
+                completedOrders: completedRow ? completedRow.completed : 0
+              });
+            });
           });
         });
       });

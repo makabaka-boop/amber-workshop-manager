@@ -18,7 +18,9 @@ const Dashboard = () => {
     stageDistribution: [],
     materialConsumption: [],
     deliveryTrend: [],
-    reworkReasons: []
+    reworkReasons: [],
+    totalOrders: 0,
+    completedOrders: 0
   });
   const [alerts, setAlerts] = useState({ overdueOrders: [], lowStockMaterials: [] });
 
@@ -99,8 +101,8 @@ const Dashboard = () => {
     color: ['#ee6666', '#fac858', '#5470c6', '#91cc75', '#73c0de']
   };
 
-  const totalOrders = stats.stageDistribution.reduce((sum, item) => sum + item.value, 0);
-  const completedOrders = stats.stageDistribution.find(s => s.name === 'completed')?.value || 0;
+  const totalOrders = stats.totalOrders ?? 0;
+  const completedOrders = stats.completedOrders ?? 0;
 
   return (
     <div>
@@ -129,8 +131,8 @@ const Dashboard = () => {
         />
       )}
 
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24} sm={12} md={12} lg={6}>
           <Card>
             <Statistic 
               title="总工单" 
@@ -140,7 +142,7 @@ const Dashboard = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} md={12} lg={6}>
           <Card>
             <Statistic 
               title="已完成" 
@@ -150,17 +152,17 @@ const Dashboard = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} md={12} lg={6}>
           <Card>
             <Statistic 
               title="进行中" 
-              value={totalOrders - completedOrders} 
+              value={Math.max(totalOrders - completedOrders, 0)} 
               prefix={<ClockCircleOutlined />}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} md={12} lg={6}>
           <Card>
             <Statistic 
               title="预警数" 
@@ -172,26 +174,26 @@ const Dashboard = () => {
         </Col>
       </Row>
 
-      <Row gutter={16}>
-        <Col span={12}>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={12}>
           <Card style={{ marginBottom: 16 }}>
             <ReactECharts option={stageChartOption} style={{ height: 350 }} />
           </Card>
         </Col>
-        <Col span={12}>
+        <Col xs={24} md={12}>
           <Card style={{ marginBottom: 16 }}>
             <ReactECharts option={materialChartOption} style={{ height: 350 }} />
           </Card>
         </Col>
       </Row>
 
-      <Row gutter={16}>
-        <Col span={12}>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={12}>
           <Card>
             <ReactECharts option={trendChartOption} style={{ height: 350 }} />
           </Card>
         </Col>
-        <Col span={12}>
+        <Col xs={24} md={12}>
           <Card>
             <ReactECharts option={reworkChartOption} style={{ height: 350 }} />
           </Card>

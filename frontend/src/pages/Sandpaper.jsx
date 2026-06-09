@@ -60,6 +60,7 @@ const Sandpaper = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 20 }}
+        scroll={{ x: 600 }}
       />
     </div>
   );
