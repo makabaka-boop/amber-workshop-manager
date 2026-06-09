@@ -110,6 +110,7 @@ const Materials = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
+        scroll={{ x: 700 }}
       />
 
       <Modal

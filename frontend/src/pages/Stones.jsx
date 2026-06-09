@@ -67,6 +67,7 @@ const Stones = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
+        scroll={{ x: 900 }}
       />
 
       <Modal
