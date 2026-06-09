@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Table, Button, Modal, Form, Input, Select, DatePicker, InputNumber, message, 
   Space, Tag, Steps, Card, Descriptions, Divider, List, Row, Col
@@ -9,7 +9,6 @@ import {
   getRoughStones, getCustomers, getSandpaper, getPolishingPaste } from '../api';
 
 const { Option } = Select;
-const { Step } = Steps;
 const { TextArea } = Input;
 
 const stageNames = {
@@ -55,11 +54,7 @@ const WorkOrders = () => {
   const [advanceForm] = Form.useForm();
   const [reworkForm] = Form.useForm();
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [ordersRes, stonesRes, customersRes, sandpaperRes, pasteRes] = await Promise.all([
@@ -74,12 +69,16 @@ const WorkOrders = () => {
       setCustomers(customersRes.data);
       setSandpaper(sandpaperRes.data);
       setPolishingPaste(pasteRes.data);
-    } catch (error) {
+    } catch {
       message.error('获取数据失败');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleCreateOrder = async (values) => {
     try {
@@ -91,7 +90,7 @@ const WorkOrders = () => {
       setCreateModalVisible(false);
       createForm.resetFields();
       fetchData();
-    } catch (error) {
+    } catch {
       message.error('创建失败');
     }
   };
@@ -102,7 +101,7 @@ const WorkOrders = () => {
       const response = await getWorkOrder(order.id);
       setOrderDetail(response.data);
       setDetailModalVisible(true);
-    } catch (error) {
+    } catch {
       message.error('获取详情失败');
     }
   };
@@ -117,6 +116,21 @@ const WorkOrders = () => {
   };
 
   const handleSubmitAdvance = async (values) => {
+    if (values.weight_after > values.weight_before) {
+      return message.error('修整后重量不能大于修整前重量');
+    }
+    if (values.sandpaper_used && values.sandpaper_used > 0 && !values.sandpaper_id) {
+      return message.error('填写了砂纸用量，请选择砂纸');
+    }
+    if (values.polishing_paste_used && values.polishing_paste_used > 0 && !values.polishing_paste_id) {
+      return message.error('填写了抛光膏用量，请选择抛光膏');
+    }
+    if (values.polishing_paste_used && values.polishing_paste_used > 0 && values.polishing_paste_id) {
+      const paste = polishingPaste.find(p => p.id === values.polishing_paste_id);
+      if (paste && values.polishing_paste_used > paste.stock_quantity) {
+        return message.error(`抛光膏用量(${values.polishing_paste_used}g)超过当前库存(${paste.stock_quantity}g)`);
+      }
+    }
     try {
       await advanceStage(selectedOrder.id, values);
       message.success('阶段推进成功');
@@ -128,7 +142,7 @@ const WorkOrders = () => {
         setOrderDetail(response.data);
       }
     } catch (error) {
-      message.error('操作失败');
+      message.error(error.response?.data?.error || '操作失败');
     }
   };
 
@@ -144,7 +158,7 @@ const WorkOrders = () => {
       setReworkModalVisible(false);
       reworkForm.resetFields();
       fetchData();
-    } catch (error) {
+    } catch {
       message.error('操作失败');
     }
   };
@@ -190,7 +204,7 @@ const WorkOrders = () => {
               推进阶段
             </Button>
           )}
-          {user.role === 'clerk' && record.status === 'recheck' && (
+          {user.role === 'clerk' && record.current_stage === 'recheck' && record.status !== 'completed' && (
             <Button type="link" icon={<ReloadOutlined />} onClick={() => handleRework(record)}>
               申请返工
             </Button>
@@ -217,6 +231,7 @@ const WorkOrders = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
+        scroll={{ x: 800 }}
       />
 
       <Modal
@@ -262,15 +277,16 @@ const WorkOrders = () => {
         open={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
         footer={null}
-        width={900}
+        width={window.innerWidth < 768 ? '95%' : 900}
       >
         {orderDetail && (
           <div>
-            <Steps current={getCurrentStepIndex(orderDetail.current_stage)} style={{ marginBottom: 24 }}>
-              {stageOrder.slice(0, -1).map((stage, idx) => (
-                <Step key={stage} title={stageNames[stage]} />
-              ))}
-            </Steps>
+            <Steps current={getCurrentStepIndex(orderDetail.current_stage)} style={{ marginBottom: 24 }}
+              items={stageOrder.map((stage) => ({
+                key: stage,
+                title: stageNames[stage]
+              }))}
+            />
 
             <Descriptions title="基本信息" bordered column={2} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="工单编号">{orderDetail.order_no}</Descriptions.Item>
