@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Layout, Menu, Badge, Button, Avatar, Dropdown, message } from 'antd';
+import { Layout, Menu, Badge, Button, Avatar, Dropdown, message, Grid } from 'antd';
 import { 
   DashboardOutlined, 
   UnorderedListOutlined, 
@@ -16,13 +16,20 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { getAlerts } from '../api';
 
 const { Header, Sider, Content } = Layout;
+const { useBreakpoint } = Grid;
 
 const MainLayout = () => {
-  const [collapsed, setCollapsed] = useState(false);
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+  const [collapsed, setCollapsed] = useState(isMobile);
   const [alerts, setAlerts] = useState({ overdueOrders: [], lowStockMaterials: [] });
   const navigate = useNavigate();
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  useEffect(() => {
+    setCollapsed(isMobile);
+  }, [isMobile]);
 
   useEffect(() => {
     fetchAlerts();
@@ -94,7 +101,35 @@ const MainLayout = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider trigger={null} collapsible collapsed={collapsed}>
+      {isMobile && !collapsed && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.45)',
+            zIndex: 999,
+          }}
+          onClick={() => setCollapsed(true)}
+        />
+      )}
+      <Sider 
+        trigger={null} 
+        collapsible 
+        collapsed={collapsed}
+        width={200}
+        style={{
+          overflow: 'auto',
+          height: '100vh',
+          position: isMobile ? 'fixed' : 'relative',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          zIndex: isMobile ? 1000 : 'auto'
+        }}
+      >
         <div style={{ 
           height: 64, 
           margin: 16, 
@@ -114,12 +149,15 @@ const MainLayout = () => {
           mode="inline"
           selectedKeys={[location.pathname]}
           items={menuItems}
-          onClick={({ key }) => navigate(key)}
+          onClick={({ key }) => {
+            navigate(key);
+            if (isMobile) setCollapsed(true);
+          }}
         />
       </Sider>
       <Layout>
         <Header style={{ 
-          padding: '0 24px', 
+          padding: isMobile ? '0 12px' : '0 24px', 
           background: '#fff', 
           display: 'flex', 
           justifyContent: 'space-between',
@@ -130,9 +168,9 @@ const MainLayout = () => {
             type="text"
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={() => setCollapsed(!collapsed)}
-            style={{ fontSize: '16px', width: 64, height: 64 }}
+            style={{ fontSize: '16px', width: isMobile ? 48 : 64, height: 64 }}
           />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
             <Badge count={alertCount} size="small">
               <Button 
                 type="text" 
@@ -143,12 +181,19 @@ const MainLayout = () => {
             <Dropdown menu={{ items: userMenuItems }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                 <Avatar icon={<UserOutlined />} />
-                <span>{user.username} ({user.role === 'clerk' ? '店员' : '工匠'})</span>
+                {!isMobile && <span>{user.username} ({user.role === 'clerk' ? '店员' : '工匠'})</span>}
               </div>
             </Dropdown>
           </div>
         </Header>
-        <Content style={{ margin: '24px', background: '#f0f2f5', borderRadius: 8, padding: 24 }}>
+        <Content style={{ 
+          margin: isMobile ? '12px' : '24px', 
+          background: '#f0f2f5', 
+          borderRadius: 8, 
+          padding: isMobile ? 12 : 24,
+          minWidth: 0,
+          overflow: 'hidden'
+        }}>
           <Outlet />
         </Content>
       </Layout>

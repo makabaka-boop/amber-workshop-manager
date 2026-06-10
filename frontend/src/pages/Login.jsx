@@ -4,7 +4,7 @@ import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { login } from '../api';
 
-const Login = () => {
+const Login = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -15,6 +15,9 @@ const Login = () => {
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
       message.success('登录成功');
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      }
       navigate('/');
     } catch (error) {
       message.error(error.response?.data?.error || '登录失败');

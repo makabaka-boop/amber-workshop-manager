@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Row, Col, Card, Statistic, Alert, Tag } from 'antd';
+import { Row, Col, Card, Statistic, Alert, Tag, Grid } from 'antd';
 import { ClockCircleOutlined, WarningOutlined, CheckCircleOutlined, FileTextOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { getDashboardStats, getAlerts } from '../api';
@@ -13,8 +13,13 @@ const stageNames = {
   completed: '已完成'
 };
 
+const { useBreakpoint } = Grid;
+
 const Dashboard = () => {
+  const screens = useBreakpoint();
   const [stats, setStats] = useState({
+    totalOrders: 0,
+    completedOrders: 0,
     stageDistribution: [],
     materialConsumption: [],
     deliveryTrend: [],
@@ -99,8 +104,8 @@ const Dashboard = () => {
     color: ['#ee6666', '#fac858', '#5470c6', '#91cc75', '#73c0de']
   };
 
-  const totalOrders = stats.stageDistribution.reduce((sum, item) => sum + item.value, 0);
-  const completedOrders = stats.stageDistribution.find(s => s.name === 'completed')?.value || 0;
+  const totalOrders = stats.totalOrders;
+  const completedOrders = stats.completedOrders;
 
   return (
     <div>
@@ -129,8 +134,8 @@ const Dashboard = () => {
         />
       )}
 
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={12} sm={12} md={6}>
           <Card>
             <Statistic 
               title="总工单" 
@@ -140,7 +145,7 @@ const Dashboard = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={12} md={6}>
           <Card>
             <Statistic 
               title="已完成" 
@@ -150,7 +155,7 @@ const Dashboard = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={12} md={6}>
           <Card>
             <Statistic 
               title="进行中" 
@@ -160,7 +165,7 @@ const Dashboard = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={12} md={6}>
           <Card>
             <Statistic 
               title="预警数" 
@@ -172,28 +177,28 @@ const Dashboard = () => {
         </Col>
       </Row>
 
-      <Row gutter={16}>
-        <Col span={12}>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={12}>
           <Card style={{ marginBottom: 16 }}>
-            <ReactECharts option={stageChartOption} style={{ height: 350 }} />
+            <ReactECharts option={stageChartOption} style={{ height: 300 }} />
           </Card>
         </Col>
-        <Col span={12}>
+        <Col xs={24} md={12}>
           <Card style={{ marginBottom: 16 }}>
-            <ReactECharts option={materialChartOption} style={{ height: 350 }} />
+            <ReactECharts option={materialChartOption} style={{ height: 300 }} />
           </Card>
         </Col>
       </Row>
 
-      <Row gutter={16}>
-        <Col span={12}>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={12}>
           <Card>
-            <ReactECharts option={trendChartOption} style={{ height: 350 }} />
+            <ReactECharts option={trendChartOption} style={{ height: 300 }} />
           </Card>
         </Col>
-        <Col span={12}>
+        <Col xs={24} md={12}>
           <Card>
-            <ReactECharts option={reworkChartOption} style={{ height: 350 }} />
+            <ReactECharts option={reworkChartOption} style={{ height: 300 }} />
           </Card>
         </Col>
       </Row>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Table, Button, Modal, Form, Input, Select, DatePicker, InputNumber, message, 
-  Space, Tag, Steps, Card, Descriptions, Divider, List, Row, Col
+  Space, Tag, Steps, Card, Descriptions, Divider, List, Row, Col, Grid
 } from 'antd';
 import { PlusOutlined, EyeOutlined, ArrowRightOutlined, ReloadOutlined } from '@ant-design/icons';
 import { 
@@ -9,8 +9,8 @@ import {
   getRoughStones, getCustomers, getSandpaper, getPolishingPaste } from '../api';
 
 const { Option } = Select;
-const { Step } = Steps;
 const { TextArea } = Input;
+const { useBreakpoint } = Grid;
 
 const stageNames = {
   cutting: '切形',
@@ -38,6 +38,8 @@ const statusTexts = {
 const stageOrder = ['cutting', 'grinding', 'polishing', 'drilling', 'recheck', 'completed'];
 
 const WorkOrders = () => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [orders, setOrders] = useState([]);
   const [stones, setStones] = useState([]);
@@ -117,6 +119,25 @@ const WorkOrders = () => {
   };
 
   const handleSubmitAdvance = async (values) => {
+    if (values.weight_after > values.weight_before) {
+      message.error('修整后重量不能大于修整前重量');
+      return;
+    }
+    if (values.sandpaper_used && values.sandpaper_used > 0 && !values.sandpaper_id) {
+      message.error('填写砂纸用量时必须选择砂纸类型');
+      return;
+    }
+    if (values.polishing_paste_used && values.polishing_paste_used > 0 && !values.polishing_paste_id) {
+      message.error('填写抛光膏用量时必须选择抛光膏类型');
+      return;
+    }
+    if (values.polishing_paste_used && values.polishing_paste_used > 0 && values.polishing_paste_id) {
+      const selectedPaste = polishingPaste.find(p => p.id === values.polishing_paste_id);
+      if (selectedPaste && values.polishing_paste_used > selectedPaste.stock_quantity) {
+        message.error(`抛光膏库存不足，当前库存: ${selectedPaste.stock_quantity}g`);
+        return;
+      }
+    }
     try {
       await advanceStage(selectedOrder.id, values);
       message.success('阶段推进成功');
@@ -128,7 +149,7 @@ const WorkOrders = () => {
         setOrderDetail(response.data);
       }
     } catch (error) {
-      message.error('操作失败');
+      message.error(error.response?.data?.error || '操作失败');
     }
   };
 
@@ -151,6 +172,7 @@ const WorkOrders = () => {
 
   const getCurrentStepIndex = (stage) => {
     const idx = stageOrder.indexOf(stage);
+    if (stage === 'completed') return 5;
     return idx === -1 ? 0 : idx;
   };
 
@@ -190,7 +212,7 @@ const WorkOrders = () => {
               推进阶段
             </Button>
           )}
-          {user.role === 'clerk' && record.status === 'recheck' && (
+          {user.role === 'clerk' && record.current_stage === 'recheck' && record.status !== 'completed' && (
             <Button type="link" icon={<ReloadOutlined />} onClick={() => handleRework(record)}>
               申请返工
             </Button>
@@ -217,6 +239,7 @@ const WorkOrders = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
+        scroll={{ x: 900 }}
       />
 
       <Modal
@@ -224,7 +247,7 @@ const WorkOrders = () => {
         open={createModalVisible}
         onCancel={() => setCreateModalVisible(false)}
         footer={null}
-        width={600}
+        width={isMobile ? '95%' : 600}
       >
         <Form form={createForm} layout="vertical" onFinish={handleCreateOrder}>
           <Form.Item name="stone_id" label="选择原石" rules={[{ required: true }]}>
@@ -262,17 +285,21 @@ const WorkOrders = () => {
         open={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
         footer={null}
-        width={900}
+        width={isMobile ? '95%' : 900}
       >
         {orderDetail && (
           <div>
-            <Steps current={getCurrentStepIndex(orderDetail.current_stage)} style={{ marginBottom: 24 }}>
-              {stageOrder.slice(0, -1).map((stage, idx) => (
-                <Step key={stage} title={stageNames[stage]} />
-              ))}
-            </Steps>
+            <Steps 
+              current={getCurrentStepIndex(orderDetail.current_stage)} 
+              style={{ marginBottom: 24 }}
+              size="small"
+              items={stageOrder.map((stage) => ({
+                key: stage,
+                title: stageNames[stage]
+              }))}
+            />
 
-            <Descriptions title="基本信息" bordered column={2} style={{ marginBottom: 16 }}>
+            <Descriptions title="基本信息" bordered column={isMobile ? 1 : 2} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="工单编号">{orderDetail.order_no}</Descriptions.Item>
               <Descriptions.Item label="状态">
                 <Tag color={statusColors[orderDetail.status]}>{statusTexts[orderDetail.status]}</Tag>
@@ -289,23 +316,23 @@ const WorkOrders = () => {
               renderItem={record => (
                 <List.Item>
                   <Card size="small" style={{ width: '100%' }}>
-                    <Row gutter={16}>
-                      <Col span={6}>
+                    <Row gutter={[12, 12]}>
+                      <Col xs={12} sm={12} md={6}>
                         <div><strong>阶段：</strong>{stageNames[record.stage]}</div>
                         <div><strong>工匠：</strong>{record.craftsman_name || '-'}</div>
                       </Col>
-                      <Col span={6}>
-                        <div><strong>修整前重量：</strong>{record.weight_before}g</div>
-                        <div><strong>修整后重量：</strong>{record.weight_after}g</div>
+                      <Col xs={12} sm={12} md={6}>
+                        <div><strong>修整前：</strong>{record.weight_before}g</div>
+                        <div><strong>修整后：</strong>{record.weight_after}g</div>
                         <div><strong>损耗：</strong>{record.weight_loss}g</div>
                       </Col>
-                      <Col span={6}>
+                      <Col xs={12} sm={12} md={6}>
                         <div><strong>砂纸：</strong>{record.grit ? `${record.grit}目` : '-'}</div>
                         <div><strong>砂纸用量：</strong>{record.sandpaper_used || 0} 张</div>
                         <div><strong>抛光膏：</strong>{record.paste_name || '-'}</div>
                         <div><strong>抛光膏用量：</strong>{record.polishing_paste_used || 0}g</div>
                       </Col>
-                      <Col span={6}>
+                      <Col xs={12} sm={12} md={6}>
                         <div><strong>裂纹风险：</strong>{record.crack_risk || '无'}</div>
                         <div><strong>备注：</strong>{record.notes || '-'}</div>
                         <div><strong>完成时间：</strong>{record.end_time ? new Date(record.end_time).toLocaleString() : '-'}</div>
@@ -334,7 +361,7 @@ const WorkOrders = () => {
         open={advanceModalVisible}
         onCancel={() => setAdvanceModalVisible(false)}
         footer={null}
-        width={600}
+        width={isMobile ? '95%' : 600}
       >
         {selectedOrder && (
           <div>
@@ -344,19 +371,19 @@ const WorkOrders = () => {
                 <Input />
               </Form.Item>
               <Row gutter={16}>
-                <Col span={12}>
+                <Col xs={24} sm={12}>
                   <Form.Item name="weight_before" label="修整前重量(g)" rules={[{ required: true }]}>
                     <InputNumber min={0} step={0.1} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
-                <Col span={12}>
+                <Col xs={24} sm={12}>
                   <Form.Item name="weight_after" label="修整后重量(g)" rules={[{ required: true }]}>
                     <InputNumber min={0} step={0.1} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
               </Row>
               <Row gutter={16}>
-                <Col span={12}>
+                <Col xs={24} sm={12}>
                   <Form.Item name="sandpaper_id" label="使用砂纸">
                     <Select placeholder="请选择砂纸">
                       {sandpaper.map(s => (
@@ -365,14 +392,14 @@ const WorkOrders = () => {
                     </Select>
                   </Form.Item>
                 </Col>
-                <Col span={12}>
+                <Col xs={24} sm={12}>
                   <Form.Item name="sandpaper_used" label="砂纸用量(张)">
                     <InputNumber min={0} step={0.5} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
               </Row>
               <Row gutter={16}>
-                <Col span={12}>
+                <Col xs={24} sm={12}>
                   <Form.Item name="polishing_paste_id" label="使用抛光膏">
                     <Select placeholder="请选择抛光膏">
                       {polishingPaste.map(p => (
@@ -381,7 +408,7 @@ const WorkOrders = () => {
                     </Select>
                   </Form.Item>
                 </Col>
-                <Col span={12}>
+                <Col xs={24} sm={12}>
                   <Form.Item name="polishing_paste_used" label="抛光膏用量(g)">
                     <InputNumber min={0} step={0.1} style={{ width: '100%' }} />
                   </Form.Item>
@@ -414,6 +441,7 @@ const WorkOrders = () => {
         open={reworkModalVisible}
         onCancel={() => setReworkModalVisible(false)}
         footer={null}
+        width={isMobile ? '95%' : 520}
       >
         <Form form={reworkForm} layout="vertical" onFinish={handleSubmitRework}>
           <Form.Item name="reason" label="返工原因" rules={[{ required: true }]}>
