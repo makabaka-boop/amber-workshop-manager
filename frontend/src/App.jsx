@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, Spin } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import Login from './pages/Login';
 import MainLayout from './components/Layout';
@@ -9,12 +10,54 @@ import Stones from './pages/Stones';
 import Customers from './pages/Customers';
 import Materials from './pages/Materials';
 import Sandpaper from './pages/Sandpaper';
+import api from './api';
 
 const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem('token');
-  if (!token) {
+  const [loading, setLoading] = useState(true);
+  const [isValid, setIsValid] = useState(false);
+
+  useEffect(() => {
+    const verifyToken = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setLoading(false);
+        setIsValid(false);
+        return;
+      }
+
+      try {
+        await api.get('/users');
+        setIsValid(true);
+      } catch (error) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setIsValid(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    verifyToken();
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        background: '#f0f2f5'
+      }}>
+        <Spin size="large" tip="验证登录状态..." />
+      </div>
+    );
+  }
+
+  if (!isValid) {
     return <Navigate to="/login" replace />;
   }
+
   return children;
 };
 

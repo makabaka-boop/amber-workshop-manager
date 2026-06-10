@@ -15,3 +15,18 @@ body {
 #root {
   min-height: 100vh;
 }
+
+@media (max-width: 768px) {
+  .ant-table {
+    overflow-x: auto;
+  }
+  
+  .ant-steps {
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+  
+  .ant-steps-item {
+    flex-shrink: 0;
+  }
+}
