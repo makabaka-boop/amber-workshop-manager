@@ -9,7 +9,6 @@ import {
   getRoughStones, getCustomers, getSandpaper, getPolishingPaste } from '../api';
 
 const { Option } = Select;
-const { Step } = Steps;
 const { TextArea } = Input;
 
 const stageNames = {
@@ -117,6 +116,18 @@ const WorkOrders = () => {
   };
 
   const handleSubmitAdvance = async (values) => {
+    if (values.weight_after > values.weight_before) {
+      message.error('修整后重量不能大于修整前重量');
+      return;
+    }
+    if ((values.sandpaper_used && values.sandpaper_used > 0) && !values.sandpaper_id) {
+      message.error('请选择使用的砂纸');
+      return;
+    }
+    if ((values.polishing_paste_used && values.polishing_paste_used > 0) && !values.polishing_paste_id) {
+      message.error('请选择使用的抛光膏');
+      return;
+    }
     try {
       await advanceStage(selectedOrder.id, values);
       message.success('阶段推进成功');
@@ -128,7 +139,7 @@ const WorkOrders = () => {
         setOrderDetail(response.data);
       }
     } catch (error) {
-      message.error('操作失败');
+      message.error(error.response?.data?.error || '操作失败');
     }
   };
 
@@ -150,8 +161,9 @@ const WorkOrders = () => {
   };
 
   const getCurrentStepIndex = (stage) => {
-    const idx = stageOrder.indexOf(stage);
-    return idx === -1 ? 0 : idx;
+    const displayStages = stageOrder.slice(0, -1);
+    const idx = displayStages.indexOf(stage);
+    return idx === -1 ? (stage === 'completed' ? displayStages.length - 1 : 0) : idx;
   };
 
   const columns = [
@@ -190,7 +202,7 @@ const WorkOrders = () => {
               推进阶段
             </Button>
           )}
-          {user.role === 'clerk' && record.status === 'recheck' && (
+          {user.role === 'clerk' && record.current_stage === 'recheck' && record.status !== 'completed' && (
             <Button type="link" icon={<ReloadOutlined />} onClick={() => handleRework(record)}>
               申请返工
             </Button>
@@ -217,6 +229,7 @@ const WorkOrders = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
+        scroll={{ x: 800 }}
       />
 
       <Modal
@@ -225,6 +238,7 @@ const WorkOrders = () => {
         onCancel={() => setCreateModalVisible(false)}
         footer={null}
         width={600}
+        style={{ maxWidth: '95vw' }}
       >
         <Form form={createForm} layout="vertical" onFinish={handleCreateOrder}>
           <Form.Item name="stone_id" label="选择原石" rules={[{ required: true }]}>
@@ -263,16 +277,25 @@ const WorkOrders = () => {
         onCancel={() => setDetailModalVisible(false)}
         footer={null}
         width={900}
+        style={{ maxWidth: '95vw' }}
       >
         {orderDetail && (
           <div>
-            <Steps current={getCurrentStepIndex(orderDetail.current_stage)} style={{ marginBottom: 24 }}>
-              {stageOrder.slice(0, -1).map((stage, idx) => (
-                <Step key={stage} title={stageNames[stage]} />
-              ))}
-            </Steps>
+            <Steps 
+              current={getCurrentStepIndex(orderDetail.current_stage)} 
+              style={{ marginBottom: 24, overflowX: 'auto', paddingBottom: 8 }}
+              items={stageOrder.slice(0, -1).map((stage) => ({
+                key: stage,
+                title: stageNames[stage]
+              }))}
+            />
 
-            <Descriptions title="基本信息" bordered column={2} style={{ marginBottom: 16 }}>
+            <Descriptions 
+              title="基本信息" 
+              bordered 
+              column={{ xs: 1, sm: 1, md: 2, lg: 2 }} 
+              style={{ marginBottom: 16 }}
+            >
               <Descriptions.Item label="工单编号">{orderDetail.order_no}</Descriptions.Item>
               <Descriptions.Item label="状态">
                 <Tag color={statusColors[orderDetail.status]}>{statusTexts[orderDetail.status]}</Tag>
@@ -289,23 +312,23 @@ const WorkOrders = () => {
               renderItem={record => (
                 <List.Item>
                   <Card size="small" style={{ width: '100%' }}>
-                    <Row gutter={16}>
-                      <Col span={6}>
+                    <Row gutter={[16, 16]}>
+                      <Col xs={12} sm={12} md={6} lg={6}>
                         <div><strong>阶段：</strong>{stageNames[record.stage]}</div>
                         <div><strong>工匠：</strong>{record.craftsman_name || '-'}</div>
                       </Col>
-                      <Col span={6}>
+                      <Col xs={12} sm={12} md={6} lg={6}>
                         <div><strong>修整前重量：</strong>{record.weight_before}g</div>
                         <div><strong>修整后重量：</strong>{record.weight_after}g</div>
                         <div><strong>损耗：</strong>{record.weight_loss}g</div>
                       </Col>
-                      <Col span={6}>
+                      <Col xs={12} sm={12} md={6} lg={6}>
                         <div><strong>砂纸：</strong>{record.grit ? `${record.grit}目` : '-'}</div>
                         <div><strong>砂纸用量：</strong>{record.sandpaper_used || 0} 张</div>
                         <div><strong>抛光膏：</strong>{record.paste_name || '-'}</div>
                         <div><strong>抛光膏用量：</strong>{record.polishing_paste_used || 0}g</div>
                       </Col>
-                      <Col span={6}>
+                      <Col xs={12} sm={12} md={6} lg={6}>
                         <div><strong>裂纹风险：</strong>{record.crack_risk || '无'}</div>
                         <div><strong>备注：</strong>{record.notes || '-'}</div>
                         <div><strong>完成时间：</strong>{record.end_time ? new Date(record.end_time).toLocaleString() : '-'}</div>
@@ -335,6 +358,7 @@ const WorkOrders = () => {
         onCancel={() => setAdvanceModalVisible(false)}
         footer={null}
         width={600}
+        style={{ maxWidth: '95vw' }}
       >
         {selectedOrder && (
           <div>
@@ -343,20 +367,20 @@ const WorkOrders = () => {
               <Form.Item name="stage" hidden>
                 <Input />
               </Form.Item>
-              <Row gutter={16}>
-                <Col span={12}>
+              <Row gutter={[16, 0]}>
+                <Col xs={24} sm={24} md={12} lg={12}>
                   <Form.Item name="weight_before" label="修整前重量(g)" rules={[{ required: true }]}>
                     <InputNumber min={0} step={0.1} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
-                <Col span={12}>
+                <Col xs={24} sm={24} md={12} lg={12}>
                   <Form.Item name="weight_after" label="修整后重量(g)" rules={[{ required: true }]}>
                     <InputNumber min={0} step={0.1} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
               </Row>
-              <Row gutter={16}>
-                <Col span={12}>
+              <Row gutter={[16, 0]}>
+                <Col xs={24} sm={24} md={12} lg={12}>
                   <Form.Item name="sandpaper_id" label="使用砂纸">
                     <Select placeholder="请选择砂纸">
                       {sandpaper.map(s => (
@@ -365,14 +389,14 @@ const WorkOrders = () => {
                     </Select>
                   </Form.Item>
                 </Col>
-                <Col span={12}>
+                <Col xs={24} sm={24} md={12} lg={12}>
                   <Form.Item name="sandpaper_used" label="砂纸用量(张)">
                     <InputNumber min={0} step={0.5} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
               </Row>
-              <Row gutter={16}>
-                <Col span={12}>
+              <Row gutter={[16, 0]}>
+                <Col xs={24} sm={24} md={12} lg={12}>
                   <Form.Item name="polishing_paste_id" label="使用抛光膏">
                     <Select placeholder="请选择抛光膏">
                       {polishingPaste.map(p => (
@@ -381,7 +405,7 @@ const WorkOrders = () => {
                     </Select>
                   </Form.Item>
                 </Col>
-                <Col span={12}>
+                <Col xs={24} sm={24} md={12} lg={12}>
                   <Form.Item name="polishing_paste_used" label="抛光膏用量(g)">
                     <InputNumber min={0} step={0.1} style={{ width: '100%' }} />
                   </Form.Item>
@@ -414,6 +438,7 @@ const WorkOrders = () => {
         open={reworkModalVisible}
         onCancel={() => setReworkModalVisible(false)}
         footer={null}
+        style={{ maxWidth: '95vw' }}
       >
         <Form form={reworkForm} layout="vertical" onFinish={handleSubmitRework}>
           <Form.Item name="reason" label="返工原因" rules={[{ required: true }]}>

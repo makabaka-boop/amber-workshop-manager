@@ -195,43 +195,70 @@ app.post('/api/work-orders/:id/advance-stage', authenticateToken, (req, res) => 
   const orderId = req.params.id;
   const { stage, weight_before, weight_after, crack_risk, notes, sandpaper_id, sandpaper_used, polishing_paste_id, polishing_paste_used } = req.body;
   
+  if (weight_after > weight_before) {
+    return res.status(400).json({ error: '修整后重量不能大于修整前重量' });
+  }
+  
+  if ((sandpaper_used && sandpaper_used > 0) && !sandpaper_id) {
+    return res.status(400).json({ error: '请选择使用的砂纸' });
+  }
+  
+  if ((polishing_paste_used && polishing_paste_used > 0) && !polishing_paste_id) {
+    return res.status(400).json({ error: '请选择使用的抛光膏' });
+  }
+  
   const stages = ['cutting', 'grinding', 'polishing', 'drilling', 'recheck', 'completed'];
   const currentStageIndex = stages.indexOf(stage);
   const nextStage = currentStageIndex < stages.length - 1 ? stages[currentStageIndex + 1] : 'completed';
   const weight_loss = weight_after ? (weight_before - weight_after) : 0;
   
-  db.run(`INSERT INTO stage_records 
-          (order_id, stage, craftsman_id, weight_before, weight_after, weight_loss, crack_risk, notes, 
-           sandpaper_id, sandpaper_used, polishing_paste_id, polishing_paste_used, end_time)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-    [orderId, stage, req.user.id, weight_before, weight_after, weight_loss, crack_risk, notes, 
-     sandpaper_id, sandpaper_used, polishing_paste_id, polishing_paste_used],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      
-      if (sandpaper_used && sandpaper_used > 0) {
-        db.run('INSERT INTO material_usage_log (order_id, material_type, material_id, quantity, used_by) VALUES (?, ?, ?, ?, ?)',
-          [orderId, 'sandpaper', sandpaper_id, sandpaper_used, req.user.id]);
-      }
-      
-      if (polishing_paste_used && polishing_paste_used > 0) {
-        db.run('INSERT INTO material_usage_log (order_id, material_type, material_id, quantity, used_by) VALUES (?, ?, ?, ?, ?)',
-          [orderId, 'polishing_paste', polishing_paste_id, polishing_paste_used, req.user.id]);
+  const proceedWithStage = () => {
+    db.run(`INSERT INTO stage_records 
+            (order_id, stage, craftsman_id, weight_before, weight_after, weight_loss, crack_risk, notes, 
+             sandpaper_id, sandpaper_used, polishing_paste_id, polishing_paste_used, end_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [orderId, stage, req.user.id, weight_before, weight_after, weight_loss, crack_risk, notes, 
+       sandpaper_id, sandpaper_used, polishing_paste_id, polishing_paste_used],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
         
-        db.run('UPDATE polishing_paste SET stock_quantity = stock_quantity - ? WHERE id = ?',
-          [polishing_paste_used, polishing_paste_id]);
-      }
-      
-      const newStatus = nextStage === 'completed' ? 'completed' : 'processing';
-      db.run('UPDATE work_orders SET current_stage = ?, status = ? WHERE id = ?', 
-        [nextStage, newStatus, orderId],
-        (err) => {
-          if (err) return res.status(500).json({ error: err.message });
-          res.json({ success: true, nextStage });
+        if (sandpaper_used && sandpaper_used > 0) {
+          db.run('INSERT INTO material_usage_log (order_id, material_type, material_id, quantity, used_by) VALUES (?, ?, ?, ?, ?)',
+            [orderId, 'sandpaper', sandpaper_id, sandpaper_used, req.user.id]);
         }
-      );
-    }
-  );
+        
+        if (polishing_paste_used && polishing_paste_used > 0) {
+          db.run('INSERT INTO material_usage_log (order_id, material_type, material_id, quantity, used_by) VALUES (?, ?, ?, ?, ?)',
+            [orderId, 'polishing_paste', polishing_paste_id, polishing_paste_used, req.user.id]);
+          
+          db.run('UPDATE polishing_paste SET stock_quantity = stock_quantity - ? WHERE id = ?',
+            [polishing_paste_used, polishing_paste_id]);
+        }
+        
+        const newStatus = nextStage === 'completed' ? 'completed' : 'processing';
+        db.run('UPDATE work_orders SET current_stage = ?, status = ? WHERE id = ?', 
+          [nextStage, newStatus, orderId],
+          (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ success: true, nextStage });
+          }
+        );
+      }
+    );
+  };
+  
+  if (polishing_paste_used && polishing_paste_used > 0) {
+    db.get('SELECT stock_quantity FROM polishing_paste WHERE id = ?', [polishing_paste_id], (err, paste) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!paste) return res.status(400).json({ error: '抛光膏不存在' });
+      if (paste.stock_quantity < polishing_paste_used) {
+        return res.status(400).json({ error: `抛光膏库存不足，当前库存：${paste.stock_quantity}g` });
+      }
+      proceedWithStage();
+    });
+  } else {
+    proceedWithStage();
+  }
 });
 
 app.post('/api/work-orders/:id/rework', authenticateToken, (req, res) => {
@@ -250,7 +277,6 @@ app.get('/api/dashboard/stats', authenticateToken, (req, res) => {
   db.all(`
     SELECT current_stage as name, COUNT(*) as value 
     FROM work_orders 
-    WHERE status != 'completed'
     GROUP BY current_stage
   `, (err, stageData) => {
     if (err) return res.status(500).json({ error: err.message });

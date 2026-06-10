@@ -129,8 +129,8 @@ const Dashboard = () => {
         />
       )}
 
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={12} sm={12} md={6} lg={6} xl={6}>
           <Card>
             <Statistic 
               title="总工单" 
@@ -140,7 +140,7 @@ const Dashboard = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={12} md={6} lg={6} xl={6}>
           <Card>
             <Statistic 
               title="已完成" 
@@ -150,7 +150,7 @@ const Dashboard = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={12} md={6} lg={6} xl={6}>
           <Card>
             <Statistic 
               title="进行中" 
@@ -160,7 +160,7 @@ const Dashboard = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={12} md={6} lg={6} xl={6}>
           <Card>
             <Statistic 
               title="预警数" 
@@ -172,26 +172,26 @@ const Dashboard = () => {
         </Col>
       </Row>
 
-      <Row gutter={16}>
-        <Col span={12}>
-          <Card style={{ marginBottom: 16 }}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+          <Card>
             <ReactECharts option={stageChartOption} style={{ height: 350 }} />
           </Card>
         </Col>
-        <Col span={12}>
-          <Card style={{ marginBottom: 16 }}>
+        <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+          <Card>
             <ReactECharts option={materialChartOption} style={{ height: 350 }} />
           </Card>
         </Col>
       </Row>
 
-      <Row gutter={16}>
-        <Col span={12}>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={24} md={12} lg={12} xl={12}>
           <Card>
             <ReactECharts option={trendChartOption} style={{ height: 350 }} />
           </Card>
         </Col>
-        <Col span={12}>
+        <Col xs={24} sm={24} md={12} lg={12} xl={12}>
           <Card>
             <ReactECharts option={reworkChartOption} style={{ height: 350 }} />
           </Card>

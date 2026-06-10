@@ -18,11 +18,19 @@ import { getAlerts } from '../api';
 const { Header, Sider, Content } = Layout;
 
 const MainLayout = () => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(window.innerWidth <= 768);
   const [alerts, setAlerts] = useState({ overdueOrders: [], lowStockMaterials: [] });
   const navigate = useNavigate();
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  useEffect(() => {
+    const handleResize = () => {
+      setCollapsed(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     fetchAlerts();
